@@ -1,9 +1,11 @@
 use clap::{Parser, Subcommand};
+use hex::{ToHex};
 use rand::rngs::OsRng;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use rsa::pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey};
 use rsa::pkcs8::LineEnding;
 use base64::{Engine as _, engine::general_purpose};
+use sha2::{Sha256, Digest};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -25,6 +27,10 @@ enum Commands {
     RSA {
         #[command(subcommand)]
         action: RSACmds,
+    },
+    SHA256 {
+        #[command(subcommand)]
+        action: SHA256Cmds,
     },
 }
 
@@ -50,7 +56,16 @@ enum CaesarCmds {
 
 #[derive(Subcommand, Clone)]
 enum RSACmds {
-    Generate,
+    Generate {
+        bits: usize,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum SHA256Cmds {
+    Encrypt {
+        text: String,
+    },
 }
 
 fn base64_encode(input: &str) {
@@ -80,13 +95,20 @@ fn caesar_decode(input: &str, shift: &u8) {
     println!("{}", caesar_shift(input, &(26 - (shift % 26))));
 }
 
-fn rsa_generate() {
+fn sha256_encrypt(input: &str) {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    let result = hasher.finalize();
+    let res = result.encode_hex::<String>();
+    println!("{}", res);
+}
+
+fn rsa_generate(bits: usize) {
     let mut rng = OsRng;
-    let bits = 1024;
     let priv_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to generate");
     let pub_key = RsaPublicKey::from(&priv_key);
-    let priv_pem = priv_key.to_pkcs1_pem(LineEnding::LF).expect("failed to encode private key");
-    let pub_pem = pub_key.to_pkcs1_pem(LineEnding::LF).expect("failed to encode public key");
+    let priv_pem = priv_key.to_pkcs1_pem(LineEnding::LF).expect("failed");
+    let pub_pem = pub_key.to_pkcs1_pem(LineEnding::LF).expect("failed");
     println!("{}", priv_pem.as_str());
     println!("{}", pub_pem);
 }
@@ -103,7 +125,10 @@ fn main() {
             CaesarCmds::Decode { text, shift } => caesar_decode(&text, &shift),
         },
         Commands::RSA { action } => match action {
-            RSACmds::Generate => rsa_generate(),
+            RSACmds::Generate { bits } => rsa_generate(bits),
+        },
+        Commands::SHA256 { action } => match action {
+            SHA256Cmds::Encrypt { text } => sha256_encrypt(&text),
         },
     }
-}
+} 
