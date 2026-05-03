@@ -1,4 +1,8 @@
 use clap::{Parser, Subcommand};
+use rand::thread_rng;
+use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey};
+use rsa::pkcs8::LineEnding;
 use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Parser)]
@@ -12,16 +16,20 @@ struct Cli {
 enum Commands {
     Base64 {
         #[command(subcommand)]
-        action: Base64Commands,
+        action: Base64Cmds,
     },
     Caesar {
         #[command(subcommand)]
-        action: CaesarCommands,
+        action: CaesarCmds,
+    },
+    RSA {
+        #[command(subcommand)]
+        action: RSACmds,
     },
 }
 
 #[derive(Subcommand, Clone)]
-enum Base64Commands {
+enum Base64Cmds {
     Encode {
         text: String,
     },
@@ -31,7 +39,7 @@ enum Base64Commands {
 }
 
 #[derive(Subcommand, Clone)]
-enum CaesarCommands {
+enum CaesarCmds {
     Encode {
         text: String,
         #[arg(short, long, default_value_t = 13)]
@@ -42,6 +50,11 @@ enum CaesarCommands {
         #[arg(short, long, default_value_t = 13)]
         shift: u8,
     },
+}
+
+#[derive(Subcommand, Clone)]
+enum RSACmds {
+    Generate,
 }
 
 fn base64_encode(input: &str) {
@@ -71,26 +84,45 @@ fn caesar_decode(input: &str, shift: &u8) {
     println!("{}", caesar_shift(input, &(26 - (shift % 26))));
 }
 
+fn rsa_generate() {
+    let mut rng = rand::thread_rng();
+    let bits = 1024;
+    let priv_key = RsaPrivateKey::new(&mut rng, bits).expect("Failed to generate");
+    let pub_key = RsaPublicKey::from(&priv_key);
+
+    let priv_pem = priv_key.to_pkcs1_pem(LineEnding::LF).expect("failed");
+
+    let pub_pem = pub_key.to_pkcs1_pem(LineEnding::LF).expect("failed");
+
+    println!("{}", priv_pem.as_str());
+
+    println!("{}", pub_pem);
+}
+
 fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-    Commands::Base64 { action } => match action 
-    {
-        Base64Commands::Encode { text } => {
+    Commands::Base64 { action } => match action {
+        Base64Cmds::Encode { text } => {
             base64_encode(&text);
-        }
-        Base64Commands::Decode { text } => {
+                }
+        Base64Cmds::Decode { text } => {
             base64_decode(&text);
+                }
+            }
+    Commands::Caesar { action } => match action {
+        CaesarCmds::Encode { text, shift } => {
+            caesar_encode(&text, &shift);
+                }
+        CaesarCmds::Decode { text, shift } => {
+            caesar_decode(&text, &shift);
+                }
+            }
+    Commands::RSA { action } => match action {
+            RSACmds::Generate => {
+                rsa_generate();
+            }
+        }
         }
     }
-        Commands::Caesar { action } => match action {
-            CaesarCommands::Encode { text, shift } => {
-                caesar_encode(&text, &shift);
-            }
-            CaesarCommands::Decode { text, shift } => {
-                caesar_decode(&text, &shift);
-            }
-        }
-    }
-}
